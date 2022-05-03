@@ -1,0 +1,482 @@
+---
+title: "Notes on Website Plots"
+author: "Pipeline Safety Trust"
+date: "Last Updated: `r format(Sys.time(), '%d %B, %Y')`"
+output:
+  tufte::tufte_html: default
+editor_options: 
+  chunk_output_type: console
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding = encoding,
+  output_dir = "./", output_format = "all");
+   rmarkdown::render(inputFile, encoding = encoding,
+  output_dir = "/Users/jameseager/Library/CloudStorage/OneDrive-pstrust.org/Documents/PST-Website/Updated Charts", output_format = "all");})
+---
+```{r, echo=FALSE}
+htmltools::img(src = knitr::image_uri("./img/PST_logo.png"), 
+               alt = 'logo', 
+               style = 'position:absolute; top:0; right:0; padding:13px;',
+               width = "300px",
+               heigth = "300px")
+```
+
+
+
+```{r echo = FALSE, message = FALSE, warning=FALSE}
+library(tidyverse)
+library(ggrepel)
+library(RColorBrewer)
+library(ggthemes)
+library(viridis)
+library(reactable)
+library(streamgraph)
+library(scales)
+library(readxl)
+library(tufte)
+library(lubridate)
+library(ggridges)
+
+knitr::opts_knit$set(root.dir = 
+                       "~/Library/CloudStorage/OneDrive-pstrust.org/DataViz/R/web_stats")
+knitr::opts_chunk$set(echo = FALSE, include = FALSE)
+options(knitr.table.format = "html")
+```
+
+# Contents  
+
+1. [Preface]   
+2. [Gas Pipelines]  
+  + [Mileage by Age]  
+  + [Incidents]  
+  + [Operators]  
+3. [Hazardous Liquid Pipelines]    
+
+# Preface  
+
+I now realize this title might be confusing so I'm adding a preface here. This was originally just going to be my notes regarding the plots as they appear on the website and how we might update, change, and add to those plots in ways that reveal new stories about the data, are more engaging to the viewer, and that help modernize the statistics page. In doing so I've gone into a lot more detail about certain visualization concepts and talking through my process so this R file has become sort of a "statistics sandbox" in a way, where I have started thinking about what exists in the data, what we might be able to find out, and how we can communicate these stories effectively. I'll continue to update this regularly (hence the auto-updating date in the header of this document), and really encourage any questions, feedback, and comments and will respond both in this document and directly as they arise.  
+
+On formatting, I'm going to keep this as an html to preserve current (and planned) interactive visuals, but will treat it as a narrative document in a lot of ways. Sections will include links back to the [Contents] list above, margins may include figures, captions, and notes. Most visualizations (and all interactive visualizations) will probably have some sort of commentary on "how" to read it if it's at all in doubt. It is also worth mentioning that R's spell-check is *relatively* rudimentary and there is no grammar check, so this document may be prone to typos and the occasional odd sentence (those of you that have seen my draft documents may have already noticed this). Again, questions, feedback, and comments would really be helpful here.  
+
+
+*Navigate back to [Contents]*  
+  
+# Gas Pipelines  
+```{r echo = FALSE, message = FALSE, warning=FALSE}
+df.gd <- read.csv("data/GD_MilesDecadeAge.csv")
+df.gt <- read.csv("data/GT_MilesDecadeAge.csv")
+df.hl <- read.csv("data/HL_MilesDecadeAge.csv")
+```
+
+```{r nice colors, echo = FALSE, message = FALSE, warning=FALSE}
+# Get colors
+brewer <- brewer.pal(5,"Set1")
+red <- brewer[1]
+blue <- brewer[2]
+green <- brewer[3]
+purple <- brewer[4]
+orange <- brewer[5]
+```
+
+```{r combining gas data, echo = FALSE, message = FALSE, warning=FALSE}
+sel_cols <- c("Calendar.Year", "Operator.ID", "Operator.Business.Name",
+              "Pre.1940.or.Unknown", "X1940.1949", "X1950.1959",
+              "X1960.1969","X1970.1979","X1980.1989","X1990.1999",
+              "X2000.2009", "X2010.2019","Total.By.Decade.Miles")
+
+time_cols <- c("Pre.1940.or.Unknown", "X1940.1949", "X1950.1959","X1960.1969",
+               "X1970.1979","X1980.1989","X1990.1999","X2000.2009", "X2010.2019")
+
+df.ag <- df.gd %>%
+  mutate(Pre.1940.or.Unknown = Unknown + Pre.1940s) %>%
+  rename(Total.By.Decade.Miles = Total.Miles.by.Decade)%>%
+  select(all_of(sel_cols)) %>%
+  bind_rows(select(df.gt, all_of(sel_cols)))%>%
+  mutate_at(vars(time_cols), ~replace_na(.,0))
+```
+
+```{r data prep for stacked area,  message = FALSE, warning=FALSE}
+agg_cols <- append(time_cols, "Calendar.Year")
+
+df.stream <-aggregate(. ~ Calendar.Year, select(df.ag, agg_cols), sum) %>%
+  pivot_longer(!Calendar.Year,
+               names_to = "Decade",
+               values_to = "PipelineMiles")
+
+write_csv(df.stream, "gas_age_table/gas_pipe_age.csv")
+```
+
+## Mileage by Age  
+
+This first plot is a recreation of what was last available on the website. It illustrates the state of operational pipelines' age by mileage as of the most recent PHMSA data. It's clear, obvious, and offers some interesting points that most folks wouldn't know and certainly might not expect. The extent of operation mileage built in the 1960s seems surprising compared to some of the decades surrounding it, and the extent of "Pre-1940 or Unknown" mileage seems concerning.   
+
+```{r carls bars, echo = FALSE, message = FALSE, include = TRUE, fig.fullwidth = TRUE}
+df.stream %>%
+  filter(Calendar.Year == last(Calendar.Year))%>%
+  ggplot(aes( x = Decade, y = PipelineMiles))+
+  geom_bar(stat = "identity", fill = blue, alpha = .9)+
+  scale_x_discrete(labels = c("Pre 1940\nor Unknown", "1940s","1950s","1960s",
+                                "1970s","1980s","1990s","2000s","2010s"))+
+  scale_y_continuous(name = "Miles of Pipeline in Operation",
+                     breaks = seq(0,300000, 50000),
+                     labels = c("0","50K", "100K","150K","200K","250K","300K"))+
+  theme_clean()+
+  labs(title = "Gas Pipeline Mileage By Decade of Installation",
+       subtitle = "In Operation as of Jan. 11, 2022",
+       caption = "Source: PHMSA Miles by Decade Gas Distribution & Gas Transmission, 2022")+
+  theme(plot.caption = element_text(size = 7.5))
+
+ggsave("plots/PipelineAgeBar.png", width = 8, height = 6, units = "in")
+
+```
+
+Beyone what exists and is in use right now, we can also look at ways to visualize how the age of pipelines in use has changed over the recent past. PHMSA's data on this topic goes back to 2005, and has not started capturing 2020s data yet, but we can at least examine how this subject has changed over the 2005-2020 period in a couple of ways.  
+
+The comparison between the interactive streamgraph and the static stacked area plot below illustrates a cognitive issue in data visualization: humans are bad at reading areas of things. When those areas are stacked, we're even _worse_ at it. To take it a step further, both plots show identical data and similar stories. Generally, it appears that older pipelines are phasing out while newer ones are continuing to expand. However, what isn't abundantly clear in the more central bands of each plot is that some older pipelines have somehow increased in use over the past 15 years.   
+
+That's the purpose of the labels in the static plot and the (minimal) interactivity in the interactive plot: identifying where the 15-year trend was an increase. We probably expect that increase for pipelines built during the period in question (2000s and 2010s lines), but seeing 1990s built operational mileage increase seems odd, similar to the1980s increase over the same period. Further, the interactive plot is built around an x-axis in the center of the plot (here is [a clearer example](https://raw.githubusercontent.com/hrbrmstr/streamgraph/master/example.png) of how that could look). The static is build on top of the x-axis by comparison. They both display identical data with slight differences and their own biases.  
+
+**Streamgraph**    
+```{r stream for year/decade built, echo = FALSE, message = FALSE, warning=FALSE, fig.fullwidth = TRUE, include = TRUE}
+df.stream %>%
+  mutate(Decade =  if_else(Decade == "Pre.1940.or.Unknown", 
+                           "1930s, Before, or Unknown", 
+                           paste(str_sub(Decade, 2,5),"s", sep = "")))%>%
+  streamgraph(key = "Decade", 
+              value = "PipelineMiles", 
+              date = "Calendar.Year")%>%
+  sg_axis_x(2,"year", "%Y")%>%
+  sg_legend(show = TRUE)
+
+#Okay so the streamgraph isn't that interesting for this data: but it could be for INCIDENTS by decade of pipeline installed where(date = incident date, value = incident count, key = decade)
+```
+  
+  
+To interact with the plot above, either pick a decade from the dropdown menu to have it highlighted, or click on the plot it self to highlight a decade. In the top left corner, you can see the exact mileage of pipelines from that decade in a given year based on the location of your cursor in the plot. It's not perfect, but after some working I realized it probably was an imperfect way to visualize the data, anyway, for the reasons outlined above (although it may be useful for other topics). 
+
+**Stacked Area**     
+```{r stacked area 05 to 20, include = TRUE, echo = FALSE, message = FALSE, fig.fullwidth = TRUE}
+txt = 3
+
+df.stream %>%
+  ggplot(aes(x = Calendar.Year, y = PipelineMiles, fill = Decade))+
+  geom_area(stat = "identity", position = position_stack(reverse = TRUE), alpha = .8)+
+  geom_text(data = df.stream %>% filter(Calendar.Year == last(Calendar.Year)),
+            aes(x = Calendar.Year + 0.6, y = PipelineMiles, 
+                label = comma(round(PipelineMiles, 0)), color = rev(Decade)),
+                position = position_stack(vjust = 0.85), fontface= "bold", size = txt)+
+  geom_text(data = df.stream %>% filter(Calendar.Year == first(Calendar.Year)),
+            aes(x = Calendar.Year - 0.6, y = PipelineMiles, 
+                label = if_else(PipelineMiles<1,"",comma(round(PipelineMiles, 0))),
+                color = rev(Decade), fontface = "bold"),
+                position = position_stack(vjust = 0.85),
+            size = txt)+
+  scale_fill_viridis_d(direction = -1,
+                       name = "Decade Built",
+                       labels = c("Pre 1940\nor Unknown", "1940","1950","1960",
+                                "1970","1980","1990","2000","2010"))+
+  scale_color_viridis_d()+
+  scale_y_continuous(name = "Pipeline Miles", 
+                     breaks = seq(0,1750000, 250000),
+                     labels = c("0", "250K", "500K", "750K", "1M","1.25M","1.5M", "1.75M"))+
+  theme_clean()+
+  guides(color = "none", fill = guide_legend(nrow = 1, 
+                                             title.position = "top", 
+                                             title.hjust = .5,
+                                             title.vjust = 0))+
+  labs(x = "Year",
+       title = "Age of Gas Pipelines in Operation by Mileage from 2005-2020",
+       caption = "Source: PHMSA Miles by Decade Gas Distribution & Gas Transmission, 2022")+
+  theme(legend.position = "bottom",
+        legend.margin=margin(), 
+        legend.justification = "center",
+        legend.background = element_rect(color = NA),
+        legend.text = element_text(size = 9),
+        legend.title = element_text(size = 9),
+        plot.caption = element_text(size = 7.5))
+
+ggsave("plots/PipelineAgeArea.png", width = 8, height = 6, units = "in")
+
+```
+  
+  
+Finally, we can abandon visualizing stacked areas altogether and look at how each individual decade's mileage has contributed to our pipeline mileage over the 15-years in question. Visualizing this way makes a few points a bit more obvious: like how much the mileage increased in the 2000s and 2010s (as we would expect), or how much the oldest pipelines in the system reached the end of their use. What is lost in this visualization is how the aggregate total of pipeline mileage in the US has increased between 2005 and 2020. Something the stakced area plots illustrate well is that increase, while this lineplot illustrates the individual trends by decade much more clearly.   
+
+
+```{r lines, echo = FALSE, include = TRUE, fig.fullwidth = TRUE, message = FALSE}
+## change decade to a label at either start or finish, remove legend 
+df.stream %>%
+  ggplot(aes( color = factor(Decade), y = PipelineMiles, x = Calendar.Year))+
+  geom_point(  alpha = .9)+
+  geom_line()+
+  geom_text_repel(data = df.stream %>% filter(Calendar.Year == first(Calendar.Year)),
+            aes(x = Calendar.Year - 0.5, y = PipelineMiles,  color = (Decade),
+                label = c("1940s &\nUnknown", "1940s","1950s","1960s",
+                          "1970s","1980s","1990s","2000s","2010s")),
+                 fontface= "bold",  direction = "y", vjust = .5, size = txt,
+            show.legend = FALSE)+
+  scale_color_viridis_d(direction = -1,
+                        name = "Decade Built",
+                        labels = c("Pre 1940\nor Unknown", "1940s","1950s","1960s",
+                                "1970s","1980s","1990s","2000s","2010s"))+
+  scale_x_continuous(name = "Year")+
+  scale_y_continuous(name = "Miles of Pipeline in Operation",
+                     breaks = seq(0,300000, 50000),
+                     labels = c("0","50K", "100K","150K","200K","250K","300K"))+
+  theme_clean()+
+  labs(title = "Gas Pipeline Mileage By Decade of Installation",
+       subtitle = "In operation as of Jan. 11, 2022",
+       caption = "Source: PHMSA Miles by Decade Gas Distribution & Gas Transmission, 2022")+
+  theme(plot.caption = element_text(size = 7.5))
+
+ggsave("plots/PipelineAgeDecadeLines.png", width = 8, height = 6, units = "in")
+```
+
+
+  
+In any case, here as an table showing the data explicitly. The table is sortable by any of the columns. Depending on the size of your browser window, you may have to scroll to see all of the columns in the table.  
+
+```{r reactable, echo = FALSE, message = FALSE, include = TRUE}
+df.stream%>%
+  pivot_wider(id_cols = Calendar.Year,
+              names_from = Decade,
+              values_from = PipelineMiles)%>%
+  rowwise() %>%
+  mutate(Miles = sum(across(Pre.1940.or.Unknown:X2010.2019)))%>%
+  reactable(
+    defaultPageSize  = 16,
+    columns = list(
+    Calendar.Year = colDef(name = "Year", 
+                           format = colFormat(separators = FALSE),
+                           width = 55), 
+    Pre.1940.or.Unknown = colDef(name = "Pre 1940 or Not Known"),
+    X1940.1949 = colDef(name = "1940s"),
+    X1950.1959 = colDef(name = "1950s"),
+    X1960.1969 = colDef(name = "1960s"),
+    X1970.1979 = colDef(name = "1970s"),
+    X1980.1989 = colDef(name = "1980s"),
+    X1990.1999 = colDef(name = "1990s"),
+    X2000.2009 = colDef(name = "2000s"),
+    X2010.2019 = colDef(name = "2010s"),
+    Miles = colDef(name = "Total Miles")),
+    defaultColDef = colDef(
+    format = colFormat(separators = TRUE, digits = 0),
+    width = 85,
+    style = list(fontFamily = "-apple-system, Helvetica, Arial, sans-serif", 
+                 fontSize = "12px"),
+  ),
+  compact = TRUE,
+  showSortable = TRUE,
+  theme = reactableTheme(
+    headerStyle = list(
+      "&:hover[aria-sort]" = list(background = "hsl(0, 0%, 96%)"),
+      "&[aria-sort='ascending'], &[aria-sort='descending']" = list(background = "hsl(0, 0%, 96%)"),
+      borderColor = "#555"
+    )
+  )
+            )
+```
+
+
+*Navigate back to [Contents]*   
+
+## Incidents 
+
+```{r}
+gd.inc <- read_xlsx("./data/incidents/gd2010toPresent.xlsx", sheet = 2)
+gt.inc <- read_xlsx("./data/incidents/gtggungs2010toPresent.xlsx", sheet = 2)
+```
+
+### Time  
+
+```{r incidents by year, include = TRUE}
+gi.capt = "Source: PHMSA Pipeline Incident Flagged Files 2010 to Present"
+gd.inc %>%
+  select(IYEAR)%>%
+  rbind(select(gt.inc,IYEAR))%>%
+  count(IYEAR)%>%
+  filter(IYEAR != 2022)%>%
+  ggplot(aes(x = IYEAR, y = n))+
+  geom_point(colour = blue)+
+  geom_line(colour = blue)+
+  theme_clean()+
+  scale_y_continuous(limits = c(150,300), breaks = seq(150,300,30), name = "Incidents")+
+  scale_x_continuous(breaks = seq(2010,2021,2), name = "Year")+
+  labs(title = "Incidents per Year",
+       subtitle = "Gas Pipelines (2010-2021)",
+       caption = gi.capt)
+```
+
+```{r fig-margin, fig.margin=TRUE, fig.cap = "Adjusting the y-axis", include = TRUE}
+gd.inc %>%
+  select(IYEAR)%>%
+  rbind(select(gt.inc,IYEAR))%>%
+  count(IYEAR)%>%
+  filter(IYEAR != 2022)%>%
+  ggplot(aes(x = IYEAR, y = n))+
+  geom_point(colour = blue)+
+  geom_line(colour = blue)+
+  theme_clean()+
+  scale_y_continuous(limits = c(0,300), breaks = seq(0,300,100), name = "Incidents")+
+  scale_x_continuous(breaks = seq(2010,2021,2), name = "Year")+
+  labs(title = "Incidents per Year",
+       subtitle = "Gas Pipelines (2010-2021)",
+       caption = gi.capt)
+```
+
+This section will explore how the frequency of gas pipeline incidents have changed (or not) through time. Basically, we would like to answer the question: are incidents increasing or decreasing? The plot above shows the general trend of all incidents through the 11-year period of the most recent PHMSA data. You'll probably notice relatively quickly that the y-axis does not start at 0. Right now, the number of incidents per year isn't particularly close to 0, so while that may the ultimate goal, it's not in sight for the data yet. If we made the y-axis start at 0 and kept the rest of the plot dimensions the same, the line wouldn't reveal the variance of the data so clearly (see margin). While the height of the line compared to the x-axis might be sort of telling for the current state of pipeline safety, it doesn't make for the most readable plot. 
+
+Aside from annual incidents, we can get a bit more granular, and look at how incidents occur through the months. It could be possible that we observe higher incidents in certain months or seasons. The plot below is pretty clear that may not be the case, but it's not the only way to look at the data.  
+ 
+```{r incidents by month, include = TRUE}
+# spaghetti
+gd.inc %>%
+  select(LOCAL_DATETIME, IYEAR)%>%
+  rbind(select(gt.inc,LOCAL_DATETIME, IYEAR))%>%
+  mutate(LOCAL_DATETIME = as.Date(LOCAL_DATETIME),
+         month = month(LOCAL_DATETIME))%>%
+  count(month, IYEAR)%>%
+  filter(IYEAR != 2022)%>%
+  ggplot(aes(x = month, y = n, group = IYEAR, color = as.factor(IYEAR)))+
+  geom_point(alpha = .8)+
+  geom_line(alpha = .8)+
+  scale_x_continuous(breaks = seq(1,12,1))+
+  scale_y_continuous(breaks = seq(5,35,5))+
+  scale_color_viridis_d(name = "Year")+
+  theme_clean()+
+  labs(x = "Month",
+       y = "Incidents",
+       title = "Incidents by Month",
+       subtitle = "Gas Pipelines (2010-2021)")+
+  theme( legend.position = "bottom",
+        legend.margin=margin(), 
+        legend.justification = "center",
+        legend.background = element_rect(color = NA),
+        legend.title = element_text())
+```
+
+```{marginfigure echo = TRUE, include = TRUE}
+Creating a facet for each year is one way of looking more closely at these monthly trends in the data, and potentially teasing out anything interesting. First, the hightest points appear in 2010, 2014, 2015, and 2016 (32, 32, 33, and 32, respectively). The '14 and '15 peaks are only separated by a few months of pretty average incidents, while the 2016 peak comes after about a year of relatively low incident rates (roughly 15 per month in the year leading up to it). 
+```
+
+```{r incidents by month facet, include = TRUE}
+# Yearly facet
+gd.inc %>%
+  select(LOCAL_DATETIME, IYEAR)%>%
+  rbind(select(gt.inc,LOCAL_DATETIME, IYEAR))%>%
+  mutate(LOCAL_DATETIME = as.Date(LOCAL_DATETIME),
+         month = month(LOCAL_DATETIME))%>%
+  count(month, IYEAR)%>%
+  filter(IYEAR != 2022)%>%
+  group_by(IYEAR)%>%
+  mutate(yearsum = sum(n)) %>%
+  ggplot(aes(x = month, y = n, group = IYEAR, color = yearsum))+
+  geom_point()+
+  geom_line()+
+  scale_x_continuous(breaks = seq(1,12,1))+
+  scale_y_continuous(breaks = seq(5,35,5))+
+  scale_color_distiller(palette = "Blues", direction = 1, limits = c(190,275), name = "Annual Incident Sum")+
+  theme_clean()+
+  facet_wrap(~IYEAR)+
+  theme(legend.position = "bottom",
+        legend.margin=margin(), 
+        legend.justification = "center",
+        legend.background = element_rect(color = NA),
+        legend.title = element_text(vjust = .85))
+```
+
+
+Faceting the years didn't reveal any particularly interesting recurring monthly patterns. Rather, it appears incidents tend to come and go in waves relatively randomly. Looking at the same data below without splitting years up, we get a timeline that shows a couple of relatively large waves in late 2011 and late 2014-2015, with a few smaller waves in the past 5 years.     
+
+```{r incidents through years by month, message = FALSE, warning = FALSE, include = TRUE, fig.fullwidth = TRUE}
+gd.inc %>%
+  select(LOCAL_DATETIME, IYEAR)%>%
+  rbind(select(gt.inc,LOCAL_DATETIME, IYEAR))%>%
+  mutate(LOCAL_DATETIME = as.Date(LOCAL_DATETIME),
+         month = month(LOCAL_DATETIME))%>%
+  count(month, IYEAR)%>%
+  filter(IYEAR != 2022)%>%
+  group_by(IYEAR)%>%
+  mutate(yearsum = sum(n))%>%
+  ungroup()%>%
+  arrange(IYEAR, month)%>%
+  mutate(n.6 = zoo::rollmean(x = n, 6, align = "right", fill = NA))%>%
+  mutate(ym = my(paste(month, IYEAR, sep = "-")))%>%
+  ggplot(aes(x = ym, y = n, color = yearsum))+
+  geom_point()+
+  geom_line()+
+  geom_point(aes(x = ym, y = n.6, label = "help"), 
+             color = orange, alpha = .7)+
+  geom_line(aes(x = ym, y = n.6), color = orange, alpha = .7)+
+  geom_text(aes(x = my("01-2012"), y = 27, label = "6-Month Average"),
+            color = orange, size = 4)+
+  scale_x_continuous(breaks = my(paste(rep(c(1,7),11),
+                                       rep(2010:2021, each = 2))),
+                     labels = paste(rep(c(1,7),11),
+                                       rep(10:21, each = 2), sep = "."),
+                     name = "Month/Year")+
+  scale_y_continuous(breaks = seq(5,35,5), name = "Incidents")+
+  scale_color_distiller(palette = "Blues", direction = 1, 
+                        limits = c(190,275), name = "Annual Incidents")+
+  theme_clean()+
+  theme(legend.position = "bottom",
+        legend.margin=margin(), 
+        legend.justification = "center",
+        legend.background = element_rect(color = NA),
+        legend.title = element_text(vjust = .85))
+```
+
+
+Finally, we can completely change the way we view incidents through time. The plot below reveals is the distribution of monthly incident numbers through the past 11 years in each ridge, while the ridge's shade shows how many total incidents in each given month. The plot ends up suggesting that June appears to be a relatively normally distributed month, with relatively average total incident numbers. On the other hand, January sees the most incidents regularly and its distribution shows a pretty even spread with some variance. By comparison, months like February, May, and October are either multimodal or have significant tails which suggest a wider variance in the incidents observed in those months. It is cool to look at (I think), and may contain some interesting observations, but it doesn't point at any really apparent story to me yet.    
+
+```{r incidents by month ridges, message = FALSE, include = TRUE, fig.fullwidth = TRUE}
+gd.inc %>%
+  select(LOCAL_DATETIME, IYEAR)%>%
+  rbind(select(gt.inc,LOCAL_DATETIME, IYEAR))%>%
+  mutate(LOCAL_DATETIME = as.Date(LOCAL_DATETIME),
+         month = month(LOCAL_DATETIME))%>%
+  count(month, IYEAR)%>%
+  group_by(month)%>%
+  mutate(monthsum = sum(n))%>%
+  filter(IYEAR != 2022)%>%
+  ggplot(aes(x = n, y = rev(as.factor(month)),  fill =  monthsum/11))+
+  geom_density_ridges(quantile_lines=TRUE,
+                      quantile_fun=function(x,...)median(x),
+                      alpha = .75)+
+  scale_fill_distiller(palette = "Blues", direction = 1, name = "Mean Incidents per Month", limits = c(18,24),breaks = seq(18,24,2),labels = seq(18,24,2)
+                       )+
+  scale_y_discrete(labels = month.abb[rev(seq(1,12,1))])+
+  theme_clean()+
+  labs(x = "Incidents",
+       title = "Incident Distribution by Month",
+       subtitle = "Gas Pipelines 2010-2021",
+       capt = gi.capt
+       )+
+  theme(panel.grid.major.y = element_blank(),
+        panel.grid.major.x = element_line(linetype = "dotted", color = "gray85"),
+        legend.position = "bottom",
+        legend.margin=margin(), 
+        legend.justification = "center",
+        legend.background = element_rect(color = NA),
+        legend.title = element_text(vjust = .85),
+        axis.title.y = element_blank())
+
+```
+
+
+*Navigate back to [Contents]*   
+  
+*Under Construction...*  
+
+### Significance & IPE
+
+### Other Subsections as they come to me
+
+## Operators   
+
+  
+# Hazardous Liquid Pipelines 
+```{r}
+#hl.inc <- read.csv("data/HL_Miles")
+```
+
+
