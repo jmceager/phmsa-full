@@ -1,5 +1,5 @@
 ---
-title: "Notes on Website Plots"
+title: "PHMSA Data Analysis"
 author: "Pipeline Safety Trust"
 date: "Last Updated: `r format(Sys.time(), '%d %B, %Y')`"
 output:
@@ -7,10 +7,10 @@ output:
 editor_options: 
   chunk_output_type: console
 knit: (function(inputFile, encoding) {
-  rmarkdown::render(inputFile, encoding = encoding,
-  output_dir = "./", output_format = "all");
-   rmarkdown::render(inputFile, encoding = encoding,
+  output_dir = "./output", output_format = "all");
   output_dir = "/Users/jameseager/Library/CloudStorage/OneDrive-pstrust.org/Documents/PST-Website/Updated Charts", output_format = "all");})
+  rmarkdown::render(inputFile, encoding = encoding,
+   rmarkdown::render(inputFile, encoding = encoding,
 ---
 ```{r, echo=FALSE}
 htmltools::img(src = knitr::image_uri("./img/PST_logo.png"), 
@@ -36,9 +36,9 @@ library(tufte)
 library(lubridate)
 library(ggridges)
 
-knitr::opts_knit$set(root.dir = 
-                       "~/Library/CloudStorage/OneDrive-pstrust.org/DataViz/R/web_stats")
+knitr::opts_knit$set(root.dir = "/Users/jameseager/Documents/projects/phmsa-full")
 knitr::opts_chunk$set(echo = FALSE, include = FALSE)
+datadir <- "/Users/jameseager/Documents/projects/PHMSA_clean/data/"
 options(knitr.table.format = "html")
 ```
 
@@ -62,9 +62,9 @@ On formatting, I'm going to keep this as an html to preserve current (and planne
   
 # Gas Pipelines  
 ```{r echo = FALSE, message = FALSE, warning=FALSE}
-df.gd <- read.csv("data/GD_MilesDecadeAge.csv")
-df.gt <- read.csv("data/GT_MilesDecadeAge.csv")
-df.hl <- read.csv("data/HL_MilesDecadeAge.csv")
+df.gd <- read.csv(paste0(datadir,"GD_MilesDecadeAge.csv"))
+df.gt <- read.csv(paste0(datadir,"GT_MilesDecadeAge.csv"))
+df.hl <- read.csv(paste0(datadir,"HL_MilesDecadeAge.csv"))
 ```
 
 ```{r nice colors, echo = FALSE, message = FALSE, warning=FALSE}
@@ -102,7 +102,7 @@ df.stream <-aggregate(. ~ Calendar.Year, select(df.ag, agg_cols), sum) %>%
                names_to = "Decade",
                values_to = "PipelineMiles")
 
-write_csv(df.stream, "gas_age_table/gas_pipe_age.csv")
+#write_csv(df.stream, "gas_age_table/gas_pipe_age.csv")
 ```
 
 ## Mileage by Age  
@@ -125,7 +125,7 @@ df.stream %>%
        caption = "Source: PHMSA Miles by Decade Gas Distribution & Gas Transmission, 2022")+
   theme(plot.caption = element_text(size = 7.5))
 
-ggsave("plots/PipelineAgeBar.png", width = 8, height = 6, units = "in")
+ggsave("output/plots/PipelineAgeBar.png", width = 8, height = 6, units = "in")
 
 ```
 
@@ -194,7 +194,7 @@ df.stream %>%
         legend.title = element_text(size = 9),
         plot.caption = element_text(size = 7.5))
 
-ggsave("plots/PipelineAgeArea.png", width = 8, height = 6, units = "in")
+ggsave("output/plots/PipelineAgeArea.png", width = 8, height = 6, units = "in")
 
 ```
   
@@ -228,7 +228,7 @@ df.stream %>%
        caption = "Source: PHMSA Miles by Decade Gas Distribution & Gas Transmission, 2022")+
   theme(plot.caption = element_text(size = 7.5))
 
-ggsave("plots/PipelineAgeDecadeLines.png", width = 8, height = 6, units = "in")
+ggsave("output/plots/PipelineAgeDecadeLines.png", width = 8, height = 6, units = "in")
 ```
 
 
@@ -282,8 +282,8 @@ df.stream%>%
 ## Incidents 
 
 ```{r}
-gd.inc <- read_xlsx("./data/incidents/gd2010toPresent.xlsx", sheet = 2)
-gt.inc <- read_xlsx("./data/incidents/gtggungs2010toPresent.xlsx", sheet = 2)
+gd.inc <- read_xlsx(paste0(datadir, "incidents/gd2010toPresent.xlsx"), sheet = 2)
+gt.inc <- read_xlsx(paste0(datadir,"incidents/gtggungs2010toPresent.xlsx"), sheet = 2)
 ```
 
 ### Time  
