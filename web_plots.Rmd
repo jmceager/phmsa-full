@@ -355,7 +355,7 @@ gt.inc <- read_xlsx(paste0(datadir,"incidents/gtggungs2010toPresent.xlsx"), shee
 
 ### Age
 
-```{r bathtub curve}
+```{r tansmission bathtub curve}
 gt.inc %>%
   mutate(INSTALLATION_YEAR = parse_number(INSTALLATION_YEAR,
                                           na = c("NA","UNKNOWN","N/A")))%>%
