@@ -39,6 +39,7 @@ library(ggridges)
 knitr::opts_knit$set(root.dir = "/Users/jameseager/Documents/projects/phmsa-full")
 knitr::opts_chunk$set(echo = FALSE, include = FALSE)
 datadir <- "/Users/jameseager/Documents/projects/PHMSA_clean/data/"
+capt = "Source: PHMSA Incident and Mileage Data (2010-2021)"
 options(knitr.table.format = "html")
 ```
 
@@ -69,12 +70,78 @@ df.hl <- read.csv(paste0(datadir,"HL_MilesDecadeAge.csv"))
 
 ```{r nice colors, echo = FALSE, message = FALSE, warning=FALSE}
 # Get colors
-brewer <- brewer.pal(5,"Set1")
-red <- brewer[1]
-blue <- brewer[2]
-green <- brewer[3]
-purple <- brewer[4]
-orange <- brewer[5]
+col <- brewer.pal(5,"Set2")
+green <- col[1]
+orange <- col[2]
+purple <- col[3]
+pink <- col[4]
+lime <- col[5]
+yellow <- col[6]
+```
+
+```{r theme_pst}
+library(showtext)
+#> Loading required package: sysfonts
+#> Loading required package: showtextdb
+pstFont = "Montserrat"
+font_add_google(pstFont)
+showtext_auto()
+theme_pst <- function(baseSize=10) {
+  (theme(
+                       axis.line.x = element_line(
+                         colour = "#182125",
+                         size = 0.5,
+                         linetype = "solid"
+                       ),
+                       axis.line.y = element_line(
+                         colour = "#182125",
+                         size = 0.5,
+                         linetype = "solid"
+                       ),
+                       axis.ticks.y = element_line(
+                         colour = "#182125",
+                         size = 0.5,
+                         linetype = "solid"
+                       ),
+                       text = element_text(family = pstFont),
+                       axis.text = element_text(colour = "#8C9394",
+                                                size = baseSize * .8),
+                       axis.title = element_text(colour ="black"),
+                       panel.grid.minor.y = element_line(linetype = "dotted", 
+                                                         colour = "#C4C8C6"),
+                       panel.grid.major.y = element_line(colour = "#394C56", 
+                                                         linetype = "dotted"),
+                       panel.grid.major.x = element_blank(),
+                       plot.tag.position = "topright",
+                       plot.tag = element_text(size = baseSize *.66,
+                                               colour = "#8C9394"),
+                       panel.grid.minor.x = element_blank(),
+                       panel.background = element_rect(fill = "#ffffff"),
+                       panel.border = element_blank(),
+                       strip.background = element_blank(),
+                       strip.text = element_blank(),
+                       strip.text.x = element_text(size = baseSize*.8, 
+                                                   face = "bold"),
+                       strip.text.y = element_blank(),
+                       legend.text = element_text(colour = "black",
+                                                  size = baseSize * .8),
+                       legend.background = element_rect(fill = NULL, 
+                                                        color = "#182125"),
+                       legend.title = element_text( face = "bold", 
+                                                    colour = "black",
+                                                    size = baseSize),
+                       legend.position = "right",
+                       legend.key = element_blank(),
+                       #legend.background = element_blank(),
+                       plot.background = element_rect(fill = "#ffffff"),
+                       plot.title = element_text(face = "bold", 
+                                                 colour = "black",
+                                                 size = baseSize*1.2),
+                       plot.subtitle = element_text(colour = "#8C9394",
+                                                    size = baseSize)
+                     )
+  )
+}
 ```
 
 ```{r combining gas data, echo = FALSE, message = FALSE, warning=FALSE}
@@ -281,10 +348,35 @@ df.stream%>%
 
 ## Incidents 
 
-```{r}
+```{r loading gas incidents?}
 gd.inc <- read_xlsx(paste0(datadir, "incidents/gd2010toPresent.xlsx"), sheet = 2)
 gt.inc <- read_xlsx(paste0(datadir,"incidents/gtggungs2010toPresent.xlsx"), sheet = 2)
 ```
+
+### Age
+
+```{r bathtub curve}
+gt.inc %>%
+  mutate(INSTALLATION_YEAR = parse_number(INSTALLATION_YEAR,
+                                          na = c("NA","UNKNOWN","N/A")))%>%
+  filter(!is.na(INSTALLATION_YEAR),
+         ON_OFF_SHORE == "ONSHORE")%>%
+  ggplot(aes(x = INSTALLATION_YEAR))+
+  geom_density(fill = green)+
+  theme_pst(baseSize = 12)+
+  theme(legend.position = c(0.25,0.8))+
+  labs(title = "Installation Age of Pipeline Incidents",
+       subtitle = "Onshore Gas Transmission Lines from the 1940s to Present",
+       caption = paste("165 Incidents reported \"unknown\" installation year (out of 1,311)",
+                       capt, sep ="\n"),
+       tag = "PST 2022",
+       y = "Density of Incidents",
+       x = "Installation Year")
+
+ 
+```
+
+
 
 ### Time  
 
@@ -469,7 +561,10 @@ gd.inc %>%
 
 ### Significance & IPE
 
+
 ### Other Subsections as they come to me
+
+
 
 ## Operators   
 
